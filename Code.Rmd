@@ -1,0 +1,82 @@
+---
+title: "Untitled"
+output: html_document
+date: "2026-03-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+library(caret)
+library(randomForest)
+library(pROC)
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# Load data
+diabetes <- read.csv("diabetic_data.csv", stringsAsFactors = FALSE)
+
+# Check structure
+str(diabetes)
+dim(diabetes)
+summary(diabetes)
+
+# Check outcome distribution
+table(diabetes$readmitted)
+
+# Convert ? to NA
+diabetes[diabetes == "?"] <- NA
+
+# Create binary outcome
+diabetes$readmit30 <- ifelse(diabetes$readmitted == "<30", 1, 0)
+
+# Convert outcome to factor
+diabetes$readmit30 <- factor(diabetes$readmit30, levels = c(0,1), labels = c("No", "Yes"))
+
+# Check new outcome
+table(diabetes$readmit30)
+
+# Remove ID columns
+diabetes <- diabetes %>%
+  select(-encounter_id, -patient_nbr, -readmitted)
+
+# Check missing values
+missing_summary <- sapply(diabetes, function(x) sum(is.na(x)))
+sort(missing_summary, decreasing = TRUE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+```{r}
+model_data <- diabetes %>%
+  select(readmit30, race, gender, age, admission_type_id,
+         discharge_disposition_id, admission_source_id,
+         time_in_hospital, num_lab_procedures, num_procedures,
+         num_medications, number_outpatient, number_emergency,
+         number_inpatient, number_diagnoses, max_glu_serum,
+         A1Cresult, insulin, change, diabetesMed)
+
+str(model_data)
+summary(model_data)
+```
+```{r}
+model_data_clean <- na.omit(model_data)
+dim(model_data_clean)
+```
+
