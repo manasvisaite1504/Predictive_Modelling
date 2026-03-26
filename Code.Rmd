@@ -187,10 +187,14 @@ log_cm
 ## Logistic regression ROC-AUC
 
 ```{r}
-log_roc <- roc(test_data$readmit30, log_probs, levels = c("No", "Yes"), direction = "<")
+log_roc <- roc(test_data$readmit30, log_probs, 
+               levels = c("No", "Yes"), direction = "<")
+
 log_auc <- auc(log_roc)
 log_auc
-plot(log_roc, main = "ROC Curve - Logistic Regression")
+
+plot(log_roc, col = "pink", lwd = 2,
+     main = "ROC Curve - Logistic Regression")
 ```
 
 ## Random forest
@@ -232,10 +236,14 @@ rf_cm
 ## Random forest ROC-AUC
 
 ```{r}
-rf_roc <- roc(test_data$readmit30, rf_pred_prob, levels = c("No", "Yes"), direction = "<")
+rf_roc <- roc(test_data$readmit30, rf_pred_prob, 
+              levels = c("No", "Yes"), direction = "<")
+
 rf_auc <- auc(rf_roc)
 rf_auc
-plot(rf_roc, main = "ROC Curve - Random Forest")
+
+plot(rf_roc, col = "grey", lwd = 2,
+     main = "ROC Curve - Random Forest")
 ```
 
 ## Important variables from random forest
@@ -267,13 +275,16 @@ results_table
 ## ROC comparison plot
 
 ```{r}
-plot(log_roc, main = "ROC Comparison: Logistic Regression vs Random Forest")
-plot(rf_roc, add = TRUE)
+plot(log_roc, col = "pink", lwd = 2,
+     main = "ROC Comparison: Logistic Regression vs Random Forest")
+
+plot(rf_roc, col = "grey", lwd = 2, add = TRUE)
+
 legend("bottomright",
        legend = c(paste("Logistic Regression AUC =", round(log_auc, 3)),
                   paste("Random Forest AUC =", round(rf_auc, 3))),
-       lwd = 2,
-       col = c("black", "red"))
+       col = c("pink", "grey"),
+       lwd = 2)
 ```
 
 ## Conclusion
