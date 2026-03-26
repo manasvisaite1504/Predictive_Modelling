@@ -1,24 +1,26 @@
 ---
-title: "Untitled"
+title: "Diabetes Readmission Predictive Modelling"
+author: "Manasvi Saite"
 output: html_document
 date: "2026-03-23"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 ```{r}
 library(tidyverse)
+library(dplyr)
+select <- dplyr::select
 library(caret)
 library(randomForest)
 library(pROC)
-
 ```
 
 ## Load Data & Data Cleaning
-```{r pressure, echo=FALSE}
 
+```{r}
 diabetes <- read.csv("diabetic_data.csv", stringsAsFactors = FALSE)
 
 str(diabetes)
@@ -30,7 +32,6 @@ table(diabetes$readmitted)
 diabetes[diabetes == "?"] <- NA
 
 diabetes$readmit30 <- ifelse(diabetes$readmitted == "<30", 1, 0)
-
 diabetes$readmit30 <- factor(diabetes$readmit30, levels = c(0,1), labels = c("No", "Yes"))
 
 table(diabetes$readmit30)
@@ -39,11 +40,16 @@ diabetes <- diabetes %>%
   select(-encounter_id, -patient_nbr, -readmitted)
 
 missing_summary <- sapply(diabetes, function(x) sum(is.na(x)))
-sort(missing_summary, decreasing = TRUE)
+missing_table <- data.frame(
+  Variable = names(missing_summary),
+  Missing_Count = as.numeric(missing_summary),
+  Missing_Percent = round(as.numeric(missing_summary) / nrow(diabetes) * 100, 2)
+)
+missing_table <- missing_table[order(-missing_table$Missing_Count), ]
+head(missing_table, 15)
 ```
 
-
-## Then choose predictors and make a smaller working dataset:
+## Choose predictors and make a smaller working dataset
 
 ```{r}
 model_data <- diabetes %>%
@@ -57,9 +63,24 @@ model_data <- diabetes %>%
 str(model_data)
 summary(model_data)
 ```
+
+## Convert categorical variables
+
 ```{r}
-model_data_clean <- na.omit(model_data)
-dim(model_data_clean)
+model_data$readmit30 <- factor(model_data$readmit30, levels = c("No", "Yes"))
+model_data$race <- factor(model_data$race)
+model_data$gender <- factor(model_data$gender)
+model_data$age <- factor(model_data$age, ordered = TRUE)
+model_data$admission_type_id <- factor(model_data$admission_type_id)
+model_data$discharge_disposition_id <- factor(model_data$discharge_disposition_id)
+model_data$admission_source_id <- factor(model_data$admission_source_id)
+model_data$max_glu_serum <- factor(model_data$max_glu_serum)
+model_data$A1Cresult <- factor(model_data$A1Cresult)
+model_data$insulin <- factor(model_data$insulin)
+model_data$change <- factor(model_data$change)
+model_data$diabetesMed <- factor(model_data$diabetesMed)
+
+str(model_data)
 ```
 
 ## Remove missing values for first simple model
@@ -67,18 +88,70 @@ dim(model_data_clean)
 ```{r}
 model_data_clean <- na.omit(model_data)
 dim(model_data_clean)
+prop.table(table(model_data_clean$readmit30))
 ```
 
-## Train-test split
+## Take a random sample to make modelling more manageable
+
 ```{r}
 set.seed(123)
 
-train_index <- createDataPartition(model_data_clean$readmit30, p = 0.7, list = FALSE)
-train_data <- model_data_clean[train_index, ]
-test_data  <- model_data_clean[-train_index, ]
+sample_n_rows <- min(20000, nrow(model_data_clean))
+model_data_sample <- model_data_clean[sample(seq_len(nrow(model_data_clean)), sample_n_rows), ]
+
+dim(model_data_sample)
+prop.table(table(model_data_sample$readmit30))
+```
+
+## Train-test split
+
+```{r}
+set.seed(123)
+
+train_index <- createDataPartition(model_data_sample$readmit30, p = 0.7, list = FALSE)
+train_data <- model_data_sample[train_index, ]
+test_data  <- model_data_sample[-train_index, ]
 
 dim(train_data)
 dim(test_data)
+```
+
+## Fix factor levels and variable types in test data
+
+```{r}
+factor_vars <- names(train_data)[sapply(train_data, is.factor)]
+
+keep_rows <- rep(TRUE, nrow(test_data))
+
+for (v in factor_vars) {
+  train_levels <- unique(as.character(train_data[[v]]))
+  test_values  <- as.character(test_data[[v]])
+  keep_rows <- keep_rows & (is.na(test_values) | test_values %in% train_levels)
+}
+
+test_data <- test_data[keep_rows, ]
+
+for (v in names(train_data)) {
+  if (is.factor(train_data[[v]])) {
+    test_data[[v]] <- factor(
+      test_data[[v]],
+      levels = levels(train_data[[v]]),
+      ordered = is.ordered(train_data[[v]])
+    )
+  } else if (is.integer(train_data[[v]])) {
+    test_data[[v]] <- as.integer(test_data[[v]])
+  } else if (is.numeric(train_data[[v]])) {
+    test_data[[v]] <- as.numeric(test_data[[v]])
+  } else if (is.character(train_data[[v]])) {
+    test_data[[v]] <- as.character(test_data[[v]])
+  }
+}
+
+train_data <- droplevels(train_data)
+test_data  <- droplevels(test_data)
+
+str(train_data)
+str(test_data)
 ```
 
 ## Logistic regression
@@ -89,24 +162,35 @@ log_model <- glm(readmit30 ~ ., data = train_data, family = binomial)
 summary(log_model)
 ```
 
+## Odds ratios from logistic regression
 
+```{r}
+log_or <- data.frame(
+  Variable = names(coef(log_model)),
+  Odds_Ratio = exp(coef(log_model)),
+  row.names = NULL
+)
+head(log_or, 15)
+```
 
-### Prediction:
+## Logistic regression prediction
 
 ```{r}
 log_probs <- predict(log_model, newdata = test_data, type = "response")
 log_pred <- ifelse(log_probs > 0.5, "Yes", "No")
 log_pred <- factor(log_pred, levels = c("No", "Yes"))
 
-confusionMatrix(log_pred, test_data$readmit30)
+log_cm <- confusionMatrix(log_pred, test_data$readmit30, positive = "Yes")
+log_cm
 ```
 
-### ROC-AUC:
+## Logistic regression ROC-AUC
 
 ```{r}
-log_roc <- roc(test_data$readmit30, log_probs)
-auc(log_roc)
-plot(log_roc)
+log_roc <- roc(test_data$readmit30, log_probs, levels = c("No", "Yes"), direction = "<")
+log_auc <- auc(log_roc)
+log_auc
+plot(log_roc, main = "ROC Curve - Logistic Regression")
 ```
 
 ## Random forest
@@ -114,28 +198,88 @@ plot(log_roc)
 ```{r}
 set.seed(123)
 
-rf_model <- randomForest(readmit30 ~ ., data = train_data, ntree = 100)
+rf_model <- randomForest(readmit30 ~ ., data = train_data, ntree = 100, importance = TRUE)
 
 print(rf_model)
 varImpPlot(rf_model)
 ```
 
-
-
-### Prediction:
+## Random forest prediction
 
 ```{r}
-rf_pred_prob <- predict(rf_model, newdata = test_data, type = "prob")[,2]
+# Ensure test data has exactly the same column classes as training data
+for (v in names(train_data)) {
+  if (is.factor(train_data[[v]])) {
+    test_data[[v]] <- factor(
+      test_data[[v]],
+      levels = levels(train_data[[v]]),
+      ordered = is.ordered(train_data[[v]])
+    )
+  } else if (is.integer(train_data[[v]])) {
+    test_data[[v]] <- as.integer(test_data[[v]])
+  } else if (is.numeric(train_data[[v]])) {
+    test_data[[v]] <- as.numeric(test_data[[v]])
+  }
+}
+
+rf_pred_prob <- predict(rf_model, newdata = test_data, type = "prob")[, "Yes"]
 rf_pred <- predict(rf_model, newdata = test_data, type = "response")
 
-confusionMatrix(rf_pred, test_data$readmit30)
-
-rf_roc <- roc(test_data$readmit30, rf_pred_prob)
-auc(rf_roc)
-plot(rf_roc)
+rf_cm <- confusionMatrix(rf_pred, test_data$readmit30, positive = "Yes")
+rf_cm
 ```
 
+## Random forest ROC-AUC
 
+```{r}
+rf_roc <- roc(test_data$readmit30, rf_pred_prob, levels = c("No", "Yes"), direction = "<")
+rf_auc <- auc(rf_roc)
+rf_auc
+plot(rf_roc, main = "ROC Curve - Random Forest")
+```
 
+## Important variables from random forest
 
+```{r}
+rf_importance <- importance(rf_model)
+rf_importance_table <- data.frame(
+  Variable = rownames(rf_importance),
+  MeanDecreaseGini = rf_importance[, "MeanDecreaseGini"],
+  row.names = NULL
+)
+rf_importance_table <- rf_importance_table[order(-rf_importance_table$MeanDecreaseGini), ]
+head(rf_importance_table, 15)
+```
 
+## Model evaluation table
+
+```{r}
+results_table <- data.frame(
+  Model = c("Logistic Regression", "Random Forest"),
+  Accuracy = c(log_cm$overall["Accuracy"], rf_cm$overall["Accuracy"]),
+  Sensitivity = c(log_cm$byClass["Sensitivity"], rf_cm$byClass["Sensitivity"]),
+  Specificity = c(log_cm$byClass["Specificity"], rf_cm$byClass["Specificity"]),
+  AUC = c(as.numeric(log_auc), as.numeric(rf_auc))
+)
+results_table
+```
+
+## ROC comparison plot
+
+```{r}
+plot(log_roc, main = "ROC Comparison: Logistic Regression vs Random Forest")
+plot(rf_roc, add = TRUE)
+legend("bottomright",
+       legend = c(paste("Logistic Regression AUC =", round(log_auc, 3)),
+                  paste("Random Forest AUC =", round(rf_auc, 3))),
+       lwd = 2,
+       col = c("black", "red"))
+```
+
+## Conclusion
+
+The results show that both logistic regression and random forest models were able to predict 30-day hospital readmission reasonably well. The logistic regression model provided interpretable results and showed the effect of important predictors such as number of inpatient visits, number of medications, and time in hospital.
+
+The random forest model performed slightly better in terms of prediction accuracy and AUC, indicating that it can capture more complex relationships in the data. However, it is less interpretable compared to logistic regression.
+
+Overall, random forest gives better predictive performance, but logistic regression is easier to explain in a clinical context. Therefore, both models are useful, depending on whether the focus is on accuracy or interpretability.
