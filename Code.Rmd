@@ -211,7 +211,6 @@ varImpPlot(rf_model)
 ## Random forest prediction
 
 ```{r}
-# Ensure test data has exactly the same column classes as training data
 for (v in names(train_data)) {
   if (is.factor(train_data[[v]])) {
     test_data[[v]] <- factor(
@@ -287,10 +286,14 @@ legend("bottomright",
        lwd = 2)
 ```
 
-## Conclusion
+## Discussion:
+Both logistic regression and random forest models achieved high accuracy (~88%), but this was mainly due to the class imbalance, where most patients were not readmitted. Therefore, accuracy alone is not a reliable measure of model performance.
 
-The results show that both logistic regression and random forest models were able to predict 30-day hospital readmission reasonably well. The logistic regression model provided interpretable results and showed the effect of important predictors such as number of inpatient visits, number of medications, and time in hospital.
+Logistic regression showed slightly better discrimination than random forest (AUC: 0.644 vs 0.617), although both models demonstrated only moderate predictive ability. A major limitation of both models was the extremely low sensitivity, meaning they failed to correctly identify most patients who were readmitted within 30 days. In contrast, specificity was very high, indicating strong performance in identifying non-readmitted patients.
 
-The random forest model performed slightly better in terms of prediction accuracy and AUC, indicating that it can capture more complex relationships in the data. However, it is less interpretable compared to logistic regression.
+Overall, while logistic regression was slightly better and more interpretable, both models are limited in practical use due to poor detection of readmitted patients. Improvements such as handling class imbalance or applying more advanced modelling techniques could enhance performance.
 
-Overall, random forest gives better predictive performance, but logistic regression is easier to explain in a clinical context. Therefore, both models are useful, depending on whether the focus is on accuracy or interpretability.
+
+## Conclusion:
+
+Logistic regression performed slightly better than random forest in terms of AUC, while both models showed similar accuracy. However, both models had very low sensitivity, indicating poor ability to detect readmitted patients.
