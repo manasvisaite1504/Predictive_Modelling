@@ -16,6 +16,7 @@ select <- dplyr::select
 library(caret)
 library(randomForest)
 library(pROC)
+library(ggplot2)
 ```
 
 ## Load Data & Data Cleaning
@@ -153,6 +154,35 @@ test_data  <- droplevels(test_data)
 str(train_data)
 str(test_data)
 ```
+## Exploratory Data Analysis
+
+## Boxplot: Time in Hospital vs Readmission
+
+```{r}
+ggplot(model_data, aes(x = readmit30, y = time_in_hospital, fill = readmit30)) +
+  geom_boxplot(width = 0.6, alpha = 0.9, outlier.color = "black") +
+  scale_fill_manual(values = c("No" = "pink", "Yes" = "grey")) +
+  labs(
+    title = "Time in Hospital by 30-Day Readmission Status",
+    x = "30-Day Readmission",
+    y = "Time in Hospital",
+    fill = "Readmission"
+  ) +
+  theme_classic()
+```
+## A bar chart of readmission counts
+```{r}
+ggplot(model_data, aes(x = readmit30, fill = readmit30)) +
+  geom_bar(alpha = 0.9) +
+  scale_fill_manual(values = c("No" = "pink", "Yes" = "grey")) +
+  labs(
+    title = "Distribution of 30-Day Readmission Status",
+    x = "30-Day Readmission",
+    y = "Count",
+    fill = "Readmission"
+  ) +
+  theme_classic()
+```
 
 ## Logistic regression
 
@@ -258,6 +288,9 @@ rf_importance_table <- rf_importance_table[order(-rf_importance_table$MeanDecrea
 head(rf_importance_table, 15)
 ```
 
+
+
+
 ## Model evaluation table
 
 ```{r}
@@ -293,7 +326,12 @@ Logistic regression showed slightly better discrimination than random forest (AU
 
 Overall, while logistic regression was slightly better and more interpretable, both models are limited in practical use due to poor detection of readmitted patients. Improvements such as handling class imbalance or applying more advanced modelling techniques could enhance performance.
 
+## Limitation:
+The dataset is highly imbalanced, with far more non-readmitted patients than readmitted ones. This leads to high accuracy but very low sensitivity.
+Both models showed very poor ability to detect readmitted patients, which limits their usefulness in real clinical settings.
+Missing data were handled using complete-case analysis, which may result in loss of information and potential bias.
+The models used are relatively simple (logistic regression and random forest without extensive tuning), so more advanced methods may improve performance.
+The dataset is observational, so it may contain noise or unmeasured factors that affect prediction accuracy.
 
 ## Conclusion:
-
 Logistic regression performed slightly better than random forest in terms of AUC, while both models showed similar accuracy. However, both models had very low sensitivity, indicating poor ability to detect readmitted patients.
